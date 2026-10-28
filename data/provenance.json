@@ -1,0 +1,11 @@
+{
+  "retrievedAt": "2026-10-28T22:36:39.155534+00:00",
+  "source": "https://ballotbench.com/methodology",
+  "sourceRecords": 863,
+  "supplementalSource": "https://www.270towin.com/2026-house-election-uncontested-races/",
+  "supplementalRecords": 5,
+  "total": 868,
+  "sha256": "19f05cd193b0017a0a62514babc15f2b8c2c744bbac999861d8b66d8031345f6",
+  "scope": "All 863 BallotBench contests plus five unopposed House districts. All 435 voting House seats, 35 Senate elections, 36 governors, 218 other statewide contests and 144 measures. Not state legislative, municipal or territorial elections.",
+  "extraction": "Rendered public contest table; candidate names and notes preserved. Supplemental residual option explicitly authored."
+}

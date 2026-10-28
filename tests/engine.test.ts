@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {probabilityFromMargin,brier,validateProposal,isLocked,csvCell} from '../lib/engine.ts';
+import {races} from '../lib/data.ts';
+const proposal={raceId:'2026-KS-S',probability:0.58,method:'Research judgement',rationale:'Sparse polling gives Hamilton a narrow lead with substantial uncertainty.',evidence:[{title:'Polling source',url:'https://example.com/poll'}]};
+test('symmetric margin distribution and monotonicity',()=>{assert.ok(Math.abs(probabilityFromMargin(0,5)-0.5)<1e-6);assert.ok(Math.abs(probabilityFromMargin(2,5)+probabilityFromMargin(-2,5)-1)<1e-6);assert.ok(probabilityFromMargin(2,5)>probabilityFromMargin(1,5));assert.ok(probabilityFromMargin(2,10)<probabilityFromMargin(2,5));assert.throws(()=>probabilityFromMargin(0,0));});
+test('seed probabilities reproduce within displayed precision',()=>{for(const r of races)assert.ok(Math.abs(r.probability-probabilityFromMargin(r.margin,r.sigma))<0.0001,r.state);});
+test('Brier rewards calibrated certainty without silently clipping',()=>{assert.equal(brier(1,1),0);assert.equal(brier(0,1),1);assert.equal(brier(0.5,1),0.25);assert.ok(Math.abs(brier(0.8,1)-0.04)<1e-12);assert.throws(()=>brier(2,1));});
+test('valid judgement input is normalized and client timestamps ignored',()=>{const result=validateProposal({...proposal,createdAt:'2020-01-01',method:'  Research judgement  '});assert.equal(result.method,'Research judgement');assert.equal('createdAt' in result,false);});
+test('reject malformed evidence, probabilities, code links and mismatched inputs',()=>{for(const value of [NaN,Infinity,-0.1,0,1,58,'0.58'])assert.throws(()=>validateProposal({...proposal,probability:value}));assert.throws(()=>validateProposal({...proposal,evidence:[{title:'Bad URL',url:'javascript:alert(1)'}]}));assert.throws(()=>validateProposal({...proposal,evidence:[]}));assert.throws(()=>validateProposal({...proposal,margin:1,sigma:5}));assert.throws(()=>validateProposal({...proposal,raceId:'unknown'}));});
+test('forecast cutoff is enforced on the boundary',()=>{assert.equal(isLocked(new Date('2026-11-03T22:59:59Z')),false);assert.equal(isLocked(new Date('2026-11-03T23:00:00Z')),true);});
+test('CSV protects formula injection and quote escaping',()=>{assert.equal(csvCell('=1+2'),'"\'=1+2"');assert.equal(csvCell('a"b'),'"a""b"');});
