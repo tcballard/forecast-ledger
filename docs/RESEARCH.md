@@ -54,3 +54,50 @@ pnpm research export > ledger-export.json
 For clean JSON stdout without package-manager banners use `node --experimental-strip-types scripts/research.ts export > ledger-export.json`.
 
 The cutoff is enforced at run start and every commitment, regardless of model-provided dates. The workflow does not schedule updates, place trades or post forecasts publicly. Evaluation requires explicit final certified outcomes, including delayed runoffs/RCV counts, recorded through the UI after cutoff.
+
+## LiteLLM API (no CLI required)
+
+The runner calls your LiteLLM gateway directly from Node. No SDK or coding-agent installation is needed. Set the gateway URL and a virtual key in your local process environment; keep the key out of chat, source files and command-line arguments. The model value is **your gateway's configured model alias**, not necessarily the upstream provider's model name.
+
+```sh
+export LITELLM_BASE_URL="https://your-gateway.example/v1"
+export LITELLM_MODEL="your-research-model-alias"
+read -rsp 'LiteLLM virtual key: ' LITELLM_API_KEY; echo
+export LITELLM_API_KEY
+pnpm research run --contest 2026-TX-S --provider litellm --search web --limit 1
+```
+
+The key-entry example uses Bash. On PowerShell, set the same environment variables through your preferred secret manager. The runner does not automatically load `.env` files. Use a dedicated virtual key with a gateway budget and model allowlist. The key is sent only in the Authorization header; the adapter rejects redirects and omits error bodies from logs. Remote URLs require HTTPS; loopback HTTP is supported for local gateways. Supply the gateway root or `/v1` base, not a full completion URL.
+
+### Choose the API and research route
+
+- **`--api responses` (default) with `--search web`:** calls `/v1/responses` with `web_search_preview`. Your gateway/model must support this tool and return a completed `web_search_call` in the output. A response with no completed search is rejected.
+- **`--api chat --search web`:** calls `/v1/chat/completions` with `web_search_options: {}`. Use a compatible search-enabled route. Chat responses do not provide a universal proof of search execution, so verify source claims. Unsupported tools or parameters are errors, never silently retried with browsing disabled.
+- **`--evidence-dir evidence --api chat`:** works with a normal text model. Provide dated source extracts per contest instead of asking it to browse. The output may cite only URLs in that packet. The adapter does not fetch those URLs or verify their contents.
+
+LiteLLM compatibility is model/provider dependent: https://docs.litellm.ai/docs/completion/web_search . A plain completion endpoint alone does not provide internet research.
+
+An evidence packet named `evidence/2026-TX-S.json` looks like:
+
+```json
+{
+  "contestId": "2026-TX-S",
+  "sources": [{
+    "title": "Actual poll or election source",
+    "url": "https://actual-source.example/report",
+    "retrievedAt": "2026-10-28T12:00:00Z",
+    "text": "Paste the actual source extract here, including publication date, poll field dates, sample and methodology where relevant."
+  }]
+}
+```
+
+The example is a template, not actual evidence. Gather lawful extracts from current sources. Source timestamps must precede the forecast cutoff and cannot be in the future. The packet is capped at 200KB, with 1–20 sources, and its hash is retained in the job record. The `evidence/` directory is excluded from Git. Only public election research should be submitted unless your gateway is approved for the data you supply.
+
+```sh
+pnpm research run --all --provider litellm --api chat --evidence-dir evidence --limit 10
+pnpm research run --all --provider litellm --search web --limit 10
+```
+
+Start with one contest to verify your route, then increase `--limit`. Use a distinct `--out research-output/model-alias` for each model or revision so existing proposals do not cause unintended skips. Successful jobs record returned token usage, endpoint mode and research mode. Dollar cost and budget enforcement remain in LiteLLM. There are no automatic retries: a timeout or provider retry can still incur charges, and your gateway may have its own retries/fallbacks. `--timeout` bounds the request including response reading. Failed jobs remain resumable; valid proposals still require review before commitment.
+
+This adapter is verified with local mock gateways, including the complete runner path. Your real gateway has not been contacted or billed during development.

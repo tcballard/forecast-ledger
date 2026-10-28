@@ -54,6 +54,8 @@ pnpm research run --all --provider codex --limit 10
 pnpm research coverage
 ```
 
+**Using LiteLLM instead?** The runner also supports `--provider litellm` with your gateway URL, virtual key and model alias. Both Responses and Chat Completions routes are supported, with explicit web search or supplied evidence packets. See [LiteLLM setup](docs/RESEARCH.md#litellm-api-no-cli-required).
+
 The Codex adapter requires your locally installed, authenticated Codex CLI and working web research access. It passes a contest-specific prompt through stdin, uses a read-only sandbox and saves validated proposals to `research-output/proposals/`. Model runs consume your provider allowance. `--limit` is a hard cap on attempted jobs per invocation (default 10); existing valid proposal files are skipped. To process the whole catalogue, explicitly use `--limit 868`. Failed jobs and abstentions are logged separately and retried on the next run. This does not schedule recurring jobs.
 
 Review a proposal's evidence and counting rules, then load it into the app and commit it. Or explicitly import one reviewed file into the local database:

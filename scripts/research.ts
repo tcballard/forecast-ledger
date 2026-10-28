@@ -1,3 +1,4 @@
+import { liteConfig,liteCompletion,evidencePacket } from './providers/litellm.ts';
 import { readFileSync,writeFileSync,mkdirSync,existsSync,renameSync } from 'node:fs';
 import { resolve,join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,14 +24,18 @@ async function main(){
  if(command==='briefs'){const cs=selected();mkdirSync(join(out,'briefs'),{recursive:true});for(const c of cs)writeFileSync(join(out,'briefs',c.id+'.txt'),researchPrompt(c));console.log(`Wrote ${cs.length} research briefs to ${join(out,'briefs')}. No model calls made.`);return;}
  if(command==='run'){
   if(Date.now()>=Date.parse(FORECAST_DEADLINE))throw new Error('The forecast cutoff has passed; new research runs are locked.');
-  const cs=selected(),limit=Number(option('limit','10'));if(!Number.isInteger(limit)||limit<1||limit>contests.length)throw new Error(`--limit must be 1–${contests.length}.`);
+  const cs=selected(),limit=Number(option('limit','10'));
+  const model=option('model',process.env.LITELLM_MODEL||'');
+  const lite=option('provider')==='litellm'?liteConfig(model,option('api','responses'),option('evidence-dir')?'evidence':option('search'),Number(option('timeout','300'))):undefined;if(!Number.isInteger(limit)||limit<1||limit>contests.length)throw new Error(`--limit must be 1–${contests.length}.`);
   mkdirSync(join(out,'proposals'),{recursive:true});mkdirSync(join(out,'jobs'),{recursive:true});let calls=0,success=0,failed=0,skipped=0;
   for(const c of cs){
    const path=join(out,'proposals',c.id+'.json'),jobpath=join(out,'jobs',c.id+'.json');
    if(existsSync(path)){try{const saved=validateNational(JSON.parse(readFileSync(path,'utf8')));if(saved.contestId===c.id){skipped++;continue;}}catch{}}
-   if(calls>=limit)break;calls++;const prompt=researchPrompt(c),startedAt=new Date().toISOString(),job={contestId:c.id,startedAt,provider:option('provider'),model:option('model','provider default'),promptSha256:createHash('sha256').update(prompt).digest('hex')};
+   if(calls>=limit)break;calls++;const prompt=researchPrompt(c),startedAt=new Date().toISOString(),job={contestId:c.id,startedAt,provider:option('provider'),model:lite?.model||option('model','provider default'),promptSha256:createHash('sha256').update(prompt).digest('hex')};
    atomic(jobpath,{...job,status:'running'});console.log(`[${calls}/${limit}] ${c.id}`);
-   try{const raw=await runModel(prompt),parsed=JSON.parse(raw.trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));if(parsed.abstain)throw new Error('Provider abstained: '+String(parsed.reason||'No reason provided'));const proposal=validateNational(parsed);if(proposal.contestId!==c.id)throw new Error('Provider returned the wrong contest.');atomic(path,proposal);atomic(jobpath,{...job,finishedAt:new Date().toISOString(),status:'needs-review'});success++;}catch(e){failed++;atomic(jobpath,{...job,finishedAt:new Date().toISOString(),status:'failed',error:e instanceof Error?e.message:String(e)});console.error(`${c.id}: ${e instanceof Error?e.message:e}`);}
+   try{const packet=lite?.search==='evidence'?evidencePacket(resolve(option('evidence-dir')),c.id):undefined;
+   const result=lite?await liteCompletion(lite,prompt,packet):{text:await runModel(prompt)};
+   const parsed=JSON.parse(result.text.trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));if(parsed.abstain)throw new Error('Provider abstained: '+String(parsed.reason||'No reason provided'));const proposal=validateNational(parsed);if(proposal.contestId!==c.id)throw new Error('Provider returned the wrong contest.');if(packet&&proposal.evidence.some(e=>!packet.urls.includes(e.url)))throw new Error('Forecast cited a URL outside its evidence packet.');atomic(path,proposal);atomic(jobpath,{...job,finishedAt:new Date().toISOString(),status:'needs-review',...('usage' in result?{usage:result.usage}:{}),...(lite?{api:lite.api,search:lite.search}:{}),...(packet?{evidenceSha256:packet.sha256}:{})});success++;}catch(e){failed++;atomic(jobpath,{...job,finishedAt:new Date().toISOString(),status:'failed',error:e instanceof Error?e.message:String(e)});console.error(`${c.id}: ${e instanceof Error?e.message:e}`);}
   }
   console.log(JSON.stringify({selected:cs.length,calls,success,failed,skipped,output:out,committed:0}));if(failed)process.exitCode=1;return;
  }
@@ -42,6 +47,6 @@ async function main(){
  if(command==='coverage'||command==='export'){
   const store=openStore(database);try{const ledger=store.read();if(command==='export'){console.log(JSON.stringify({...ledger,contests},null,2));return;}const latest=latestByContest(ledger.forecasts);console.log(JSON.stringify({contests:contests.length,complete:[...latest.values()].filter(f=>f.kind==='distribution').length,binary:[...latest.values()].filter(f=>f.kind==='binary').length,awaiting:contests.length-latest.size,byOffice:Object.fromEntries(['Senate','House','Governor','Statewide','Measures'].map(k=>[k,contests.filter(c=>category(c)===k).length])),database},null,2));}finally{store.close();}return;
  }
- console.log(`Forecast Ledger research CLI\n\nbriefs --all | --contest ID | --state XX | --office House\nrun --all --provider codex --limit 10 [--model NAME] [--timeout 300]\nrun --all --provider command --executable PATH --args '["arg"]' --limit 10\nvalidate FILE.json\nimport FILE.json   # explicit local commitment after your review\ncoverage\nexport\n\nUse --out DIRECTORY for briefs, proposals and job logs. Runs resume existing valid proposals. Model calls may consume your provider allowance; no calls occur on app startup. Each job receives one prompt on stdin and must emit one JSON object on stdout. No shell interpolation. --limit bounds calls per invocation. Runs never import automatically.`);
+ console.log(`Forecast Ledger research CLI\n\nbriefs --all | --contest ID | --state XX | --office House\nrun --all --provider codex --limit 10 [--model NAME] [--timeout 300]\nrun --all --provider litellm --model ALIAS --search web --limit 10 [--api responses|chat]\nrun --all --provider litellm --model ALIAS --evidence-dir DIRECTORY --limit 10\nrun --all --provider command --executable PATH --args '["arg"]' --limit 10\nvalidate FILE.json\nimport FILE.json   # explicit local commitment after your review\ncoverage\nexport\n\nUse --out DIRECTORY for briefs, proposals and job logs. Runs resume existing valid proposals. Model calls may consume your provider allowance; no calls occur on app startup. Each job receives one prompt on stdin and must emit one JSON object on stdout. No shell interpolation. --limit bounds calls per invocation. Runs never import automatically.`);
 }
 main().catch(e=>{console.error(e instanceof Error?e.message:e);process.exitCode=1;});
