@@ -15,9 +15,10 @@
     "build:local": "vite build --config vite.portable.config.ts",
     "start:local": "node --experimental-strip-types scripts/local-server.ts",
     "local": "npm run build:local && npm run start:local",
-    "test": "node --experimental-strip-types --test tests/engine.test.ts tests/national.test.ts tests/local.test.ts tests/litellm.test.ts",
+    "test": "node --experimental-strip-types --test tests/engine.test.ts tests/national.test.ts tests/local.test.ts tests/litellm.test.ts tests/litellm-settings.test.ts",
     "typecheck": "tsc --noEmit",
-    "research": "node --experimental-strip-types scripts/research.ts"
+    "research": "node --experimental-strip-types scripts/research.ts",
+    "setup:litellm": "node --experimental-strip-types scripts/setup-litellm.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

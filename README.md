@@ -48,15 +48,26 @@ The source is the complete 863-entry BallotBench catalogue captured on 28 Octobe
 
 ## Run the research pipeline
 
+LiteLLM is the default. Configure your endpoint once, check access, then test one contest:
+
 ```sh
-pnpm research briefs --all
-pnpm research run --all --provider codex --limit 10
+pnpm setup:litellm
+pnpm research doctor
+pnpm research run --contest 2026-TX-S --limit 1
+```
+
+The setup command prompts for your gateway, hidden virtual key, model alias and research mode. Settings stay in the ignored `.ledger/` directory. The app frontend never receives your key. Both Chat Completions and Responses are supported. Choose a route with native web search, or supply dated evidence packets. See [LiteLLM setup](docs/RESEARCH.md#litellm-api-no-cli-required).
+
+To research the complete catalogue with your configured endpoint:
+
+```sh
+pnpm research run --all --limit 868
 pnpm research coverage
 ```
 
-**Using LiteLLM instead?** The runner also supports `--provider litellm` with your gateway URL, virtual key and model alias. Both Responses and Chat Completions routes are supported, with explicit web search or supplied evidence packets. See [LiteLLM setup](docs/RESEARCH.md#litellm-api-no-cli-required).
+Existing valid proposals are skipped. Provider calls consume your gateway allowance. Setup and `doctor` make no completion calls. Generate all briefs without model calls using `pnpm research briefs --all`.
 
-The Codex adapter requires your locally installed, authenticated Codex CLI and working web research access. It passes a contest-specific prompt through stdin, uses a read-only sandbox and saves validated proposals to `research-output/proposals/`. Model runs consume your provider allowance. `--limit` is a hard cap on attempted jobs per invocation (default 10); existing valid proposal files are skipped. To process the whole catalogue, explicitly use `--limit 868`. Failed jobs and abstentions are logged separately and retried on the next run. This does not schedule recurring jobs.
+The Codex CLI remains an optional adapter via `--provider codex`. The Codex adapter requires your locally installed, authenticated Codex CLI and working web research access. It passes a contest-specific prompt through stdin, uses a read-only sandbox and saves validated proposals to `research-output/proposals/`. Model runs consume your provider allowance. `--limit` is a hard cap on attempted jobs per invocation (default 10); existing valid proposal files are skipped. To process the whole catalogue, explicitly use `--limit 868`. Failed jobs and abstentions are logged separately and retried on the next run. This does not schedule recurring jobs.
 
 Review a proposal's evidence and counting rules, then load it into the app and commit it. Or explicitly import one reviewed file into the local database:
 

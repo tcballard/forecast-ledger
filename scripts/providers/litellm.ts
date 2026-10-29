@@ -14,7 +14,7 @@ export function liteConfig(model:string,api:string,search:string,timeout:number,
  if(!['responses','chat'].includes(api))throw new Error('--api must be responses or chat.');
  if(!['web','evidence'].includes(search))throw new Error('LiteLLM needs --search web, or --evidence-dir DIRECTORY for a model without web search.');
  if(!Number.isFinite(timeout)||timeout<1||timeout>3600)throw new Error('--timeout must be 1–3600 seconds.');
- const path=u.pathname.replace(/\/+$/,'');u.pathname=path+(path.endsWith('/v1')?'':'/v1')+(api==='chat'?'/chat/completions':'/responses');
+ const path=u.pathname.replace(/\/+$/,'').replace(/\/(chat\/completions|responses)$/,'');u.pathname=path+(path.endsWith('/v1')?'':'/v1')+(api==='chat'?'/chat/completions':'/responses');
  return {url:u.toString(),key,model:model.trim(),api:api as LiteConfig['api'],search:search as LiteConfig['search'],timeoutMs:timeout*1000};
 }
 export function evidencePacket(directory:string,contestId:string,now=new Date()){

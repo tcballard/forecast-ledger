@@ -57,22 +57,47 @@ The cutoff is enforced at run start and every commitment, regardless of model-pr
 
 ## LiteLLM API (no CLI required)
 
+### Guided setup
+
+```sh
+git pull
+pnpm setup:litellm
+pnpm research doctor
+pnpm research run --contest 2026-TX-S --limit 1
+```
+
+Setup asks for your endpoint URL, a hidden virtual-key entry, the model alias, API mode and research mode. It saves `.ledger/litellm.json`, excluded from Git, with owner-only file permissions on Unix. Root, `/v1` and full completion URLs are accepted. The default API mode is Chat Completions, or Responses when your URL ends in `/responses`. Choose the mode your gateway supports. Nothing is sent during setup.
+
+`doctor` checks authentication and that your alias appears in `/v1/models`; it makes no completion call. A gateway that disables model listing may fail this check while still supporting completions. The one-contest run verifies actual generation and research support and may consume your provider allowance. LiteLLM is now the default provider. Environment variables override saved settings; explicit CLI flags override those variables. The API key stays in the local Node process and never enters the frontend bundle.
+
+After verifying one contest, run the entire catalogue:
+
+```sh
+pnpm research run --all --limit 868
+```
+
+This is resumable and retains the existing human review step. It does not schedule jobs or commit model output automatically. You can still choose `--provider codex` or `--provider command` explicitly.
+
+### Environment configuration for scripts
+
 The runner calls your LiteLLM gateway directly from Node. No SDK or coding-agent installation is needed. Set the gateway URL and a virtual key in your local process environment; keep the key out of chat, source files and command-line arguments. The model value is **your gateway's configured model alias**, not necessarily the upstream provider's model name.
 
 ```sh
 export LITELLM_BASE_URL="https://your-gateway.example/v1"
 export LITELLM_MODEL="your-research-model-alias"
+export LITELLM_API="responses"
+export LITELLM_SEARCH="web"
 read -rsp 'LiteLLM virtual key: ' LITELLM_API_KEY; echo
 export LITELLM_API_KEY
 pnpm research run --contest 2026-TX-S --provider litellm --search web --limit 1
 ```
 
-The key-entry example uses Bash. On PowerShell, set the same environment variables through your preferred secret manager. The runner does not automatically load `.env` files. Use a dedicated virtual key with a gateway budget and model allowlist. The key is sent only in the Authorization header; the adapter rejects redirects and omits error bodies from logs. Remote URLs require HTTPS; loopback HTTP is supported for local gateways. Supply the gateway root or `/v1` base, not a full completion URL.
+The key-entry example uses Bash. On PowerShell, set the same environment variables through your preferred secret manager. The runner reads `.ledger/litellm.json` but does not automatically load `.env` files. Set `LITELLM_API=responses` or `chat`, and `LITELLM_SEARCH=web` or `evidence`. Evidence mode also requires `LITELLM_EVIDENCE_DIR`. Use a dedicated virtual key with a gateway budget and model allowlist. The key is sent only in the Authorization header; the adapter rejects redirects and omits error bodies from logs. Remote URLs require HTTPS; loopback HTTP is supported for local gateways. Supply the gateway root or `/v1` base, not a full completion URL.
 
 ### Choose the API and research route
 
-- **`--api responses` (default) with `--search web`:** calls `/v1/responses` with `web_search_preview`. Your gateway/model must support this tool and return a completed `web_search_call` in the output. A response with no completed search is rejected.
-- **`--api chat --search web`:** calls `/v1/chat/completions` with `web_search_options: {}`. Use a compatible search-enabled route. Chat responses do not provide a universal proof of search execution, so verify source claims. Unsupported tools or parameters are errors, never silently retried with browsing disabled.
+- **`--api responses` with `--search web`:** calls `/v1/responses` with `web_search_preview`. Your gateway/model must support this tool and return a completed `web_search_call` in the output. A response with no completed search is rejected.
+- **`--api chat --search web` (default API):** calls `/v1/chat/completions` with `web_search_options: {}`. Use a compatible search-enabled route. Chat responses do not provide a universal proof of search execution, so verify source claims. Unsupported tools or parameters are errors, never silently retried with browsing disabled.
 - **`--evidence-dir evidence --api chat`:** works with a normal text model. Provide dated source extracts per contest instead of asking it to browse. The output may cite only URLs in that packet. The adapter does not fetch those URLs or verify their contents.
 
 LiteLLM compatibility is model/provider dependent: https://docs.litellm.ai/docs/completion/web_search . A plain completion endpoint alone does not provide internet research.
